@@ -1,0 +1,52 @@
+services:
+  optisolve:
+    build: .
+    environment:
+      OPTISOLVE_ENV: ${OPTISOLVE_ENV:-production}
+      OPTISOLVE_BASE_URL: ${OPTISOLVE_BASE_URL:?Set OPTISOLVE_BASE_URL in .env}
+      OPTISOLVE_RUNTIME_DIR: /app/runtime
+      OPTISOLVE_JOB_TTL_HOURS: ${OPTISOLVE_JOB_TTL_HOURS:-24}
+      OPTISOLVE_MAX_STORED_JOBS: ${OPTISOLVE_MAX_STORED_JOBS:-100}
+      OPTISOLVE_SOLVE_LIMIT_PER_MINUTE: ${OPTISOLVE_SOLVE_LIMIT_PER_MINUTE:-5}
+    expose:
+      - "8000"
+    volumes:
+      - optisolve_runtime:/app/runtime
+    networks:
+      - web
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).read()\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env}
+    depends_on:
+      optisolve:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - web
+
+networks:
+  web:
+
+volumes:
+  optisolve_runtime:
+  caddy_data:
+  caddy_config:

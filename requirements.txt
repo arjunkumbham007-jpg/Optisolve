@@ -1,0 +1,8 @@
+fastapi>=0.115,<1
+uvicorn[standard]>=0.30,<1
+pydantic>=2.8,<3
+manim==0.22.0
+numpy>=2.0
+matplotlib>=3.9
+pytest>=8
+httpx>=0.27

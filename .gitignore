@@ -1,0 +1,71 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local secrets/config
+.env
+.env.*
+!.env.example
+
+# C++ build outputs
+solver/optisolve
+solver/*.o
+*.out
+
+# Runtime outputs and caches
+runtime/
+solver/optisolve_result.json
+media/
+*.log
+
+# Local backups and editor/OS files
+backups/
+.DS_Store
+*~
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Secrets — commit .env.example, never .env
+.env
+.env.*
+!.env.example
+
+# Generated solver and video files
+solver/optisolve
+solver/optisolve_result.json
+optisolve_result.json
+media/
+visualizer/optisolve_graph.png
+
+# Backups and local release bundles
+backups/
+*_backup_*/
+*.before-trace-*
+optisolve_*/
+
+# Logs
+*.log
+# Local backups and historical snapshots
+api_main_backup_*.py
+api_main_before_*.py
+frontend_index_backup_*.html
+frontend_index_before_*.html
+solver_tests_backup_*.cpp
+solver_tests_before_*.cpp
+test_api_before_*.py
+visualizer/lpp_animation_v[0-9]*.py
+
+# Compiled local test executable
+/solver_tests
+
+# Historical development notes
+README_*_V*.md
+TRACE_*_README.md

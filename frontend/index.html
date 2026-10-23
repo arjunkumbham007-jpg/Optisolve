@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OptiSolve — Interactive Linear Programming Solver &amp; Simplex Visualizer</title>
+  <meta name="description" content="Solve linear programming problems with Simplex, Two-Phase Simplex, and Big-M. Explore pivot tableaus, constraints, and generated visual explanations.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="OptiSolve — Optimization, Explained">
+  <meta property="og:description" content="An interactive linear programming solver with algorithm walkthroughs and generated visual explanations.">
+  <meta name="twitter:card" content="summary">
+  <!-- OPTISOLVE_CANONICAL -->
+  <!-- OPTISOLVE_OG_URL -->
+  <!-- OPTISOLVE_STRUCTURED_DATA -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #131b2e;
+      --border: #29354d;
+      --text: #edf2ff;
+      --muted: #9baac3;
+      --accent: #8b9dff;
+      --green: #55d6a2;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: radial-gradient(ellipse at 15% 0%, #1c2850 0, transparent 44%), var(--bg);
+      color: var(--text);
+      font: 15px/1.5 system-ui, sans-serif;
+      min-height: 100vh;
+    }
+    .container { max-width: 1240px; margin: auto; padding: 32px 22px 48px; }
+    header { margin-bottom: 28px; }
+    .brand { color: var(--accent); font-size: 13px; font-weight: 800; letter-spacing: 3px; }
+    h1 { font-size: clamp(30px, 5vw, 46px); letter-spacing: -1.5px; margin: 12px 0 8px; }
+    .subtitle, .muted { color: var(--muted); }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 20px; align-items: start; }
+    .panel { background: rgba(19, 27, 46, .94); border: 1px solid var(--border); border-radius: 16px; padding: 22px; min-width: 0; }
+    h2 { font-size: 19px; margin: 0 0 18px; }
+    h3 { font-size: 15px; margin: 24px 0 10px; }
+    label, .field-label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 7px; }
+    input, select, textarea {
+      color: var(--text); background: #0b1222; border: 1px solid #35425d;
+      border-radius: 8px; padding: 10px; width: 100%; min-width: 0; font: inherit;
+    }
+    textarea { resize: vertical; min-height: 130px; line-height: 1.55; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .natural-language { border: 1px solid #35425d; border-radius: 12px; padding: 14px; margin: 0 0 18px; background: rgba(8,14,27,.55); }
+    .natural-language h3 { margin: 0 0 8px; }
+    .natural-language .note { margin: 8px 0 10px; }
+    .parse-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .parse-status { margin-top: 10px; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .parse-status.error { color: #ffc3ce; }
+    .parse-status.success { color: #a7f3d0; }
+    .selects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .variable-count { margin-top: 16px; max-width: 260px; }
+    .objective-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+    .objective-field { min-width: 0; }
+    .objective-field label { overflow-wrap: anywhere; }
+    .constraint-scroll { width: 100%; overflow-x: auto; padding-bottom: 5px; }
+    .constraint-head, .constraint-row {
+      display: grid;
+      grid-template-columns: repeat(var(--variable-count, 2), 88px) 72px 90px 34px;
+      gap: 7px;
+      align-items: center;
+      min-width: max-content;
+    }
+    .constraint-head { margin: 16px 0 7px; text-align: center; font-size: 11px; color: var(--muted); }
+    .constraint-row { margin-bottom: 10px; }
+    .relation { text-align: center; }
+    .remove { padding: 7px; color: #fda4af; }
+    button { cursor: pointer; border: 1px solid var(--border); border-radius: 9px; padding: 10px 13px; background: #202c45; color: var(--text); font: inherit; font-weight: 650; }
+    button:hover { filter: brightness(1.15); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .primary { background: var(--accent); color: #10162b; border: none; width: 100%; padding: 13px; margin-top: 20px; }
+    .secondary { margin-top: 10px; font-size: 13px; }
+    .note { font-size: 12px; color: var(--muted); margin-top: 14px; }
+    .empty { color: var(--muted); text-align: center; padding: 48px 12px; }
+    .status { padding: 11px 13px; border-radius: 9px; background: #202c45; margin-bottom: 16px; overflow-wrap: anywhere; }
+    .status.error { background: #3a1f30; color: #ffc3ce; }
+    .status.success { background: #15362e; color: #a7f3d0; }
+    .status.warning { background: #352c18; color: #fde68a; }
+    .video-health-output { font-size: 12px; }
+    .metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .metric { padding: 16px; border: 1px solid var(--border); background: #0d1527; border-radius: 11px; min-width: 0; }
+    .metric span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 5px; }
+    .metric strong { font-size: 22px; overflow-wrap: anywhere; }
+    .variable-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+    .variable-result { padding: 10px 12px; border: 1px solid var(--border); background: #0d1527; border-radius: 9px; min-width: 0; }
+    .variable-result span { display: block; color: var(--muted); font-size: 12px; }
+    .variable-result strong { overflow-wrap: anywhere; }
+    .trace-wrap { margin-top: 22px; }
+    .trace-list { display: grid; gap: 9px; margin-top: 10px; }
+    .trace-step { border: 1px solid var(--border); background: #0d1527; border-radius: 10px; overflow: hidden; }
+    .trace-step summary { cursor: pointer; padding: 12px; font-weight: 650; }
+    .trace-step-content { padding: 0 12px 13px; }
+    .trace-explanation { color: var(--muted); margin: 4px 0 10px; }
+    .trace-meta { font-size: 12px; color: var(--muted); margin: 6px 0; }
+    .trace-table-wrap { max-width: 100%; overflow: auto; margin-top: 10px; }
+    .trace-table { border-collapse: collapse; white-space: nowrap; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .trace-table th, .trace-table td { border: 1px solid var(--border); padding: 5px 7px; text-align: right; }
+    .trace-table th { position: sticky; top: 0; background: #202c45; color: var(--text); }
+    .trace-table th:first-child, .trace-table td:first-child { text-align: left; font-weight: 650; background: #151f34; }
+    .trace-table .pivot-cell { background: #6b4f00; color: #fff1ad; font-weight: 800; outline: 1px solid #facc15; }
+    .trace-truncated { color: #fcd34d; }
+    .ratio-test-title { font-weight: 700; margin: 14px 0 6px; }
+    .ratio-selected { background: #163b31; color: #c0f8df; }
+    .ratio-ineligible { color: var(--muted); }
+    .reduced-selected { background: #163b31; color: #c0f8df; }
+    .reduced-ineligible { color: var(--muted); }
+    .reduced-cost-title { font-weight: 700; margin: 14px 0 6px; }
+    .reduced-cost-explanation { color: var(--muted); font-size: 12px; margin: 5px 0 8px; }
+    .iteration-bridge { margin-top: 16px; padding: 13px; border: 1px solid #405578; border-radius: 10px; background: linear-gradient(135deg, rgba(43,65,105,.28), rgba(13,21,39,.8)); }
+    .iteration-bridge h4 { margin: 0 0 8px; color: #c5d2ff; font-size: 14px; }
+    .bridge-status { margin: 6px 0 10px; font-size: 12px; color: var(--muted); }
+    .bridge-status.verified { color: #a7f3d0; }
+    .bridge-status.warning { color: #fcd34d; }
+    .bridge-decision-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 9px; margin: 10px 0; }
+    .bridge-decision { border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; background: rgba(8,14,27,.65); min-width: 0; }
+    .bridge-decision span { display: block; color: var(--muted); font-size: 11px; }
+    .bridge-decision strong { display: block; margin-top: 3px; overflow-wrap: anywhere; }
+    .bridge-candidate-list { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
+    .bridge-candidate-list li { margin: 3px 0; }
+    .bridge-explanation { margin: 8px 0 0; font-size: 13px; }
+    .video-wrap { margin-top: 22px; }
+    video { display: block; width: 100%; border-radius: 10px; background: #000; margin-top: 12px; }
+    .video-link { display: inline-block; margin-top: 10px; color: var(--accent); overflow-wrap: anywhere; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; color: var(--muted); }
+    footer { margin-top: 28px; font-size: 12px; color: var(--muted); }
+    @media (max-width: 820px) { .layout { grid-template-columns: 1fr; } }
+    @media (max-width: 480px) {
+      .container { padding: 24px 12px; }
+      .panel { padding: 15px; }
+      .selects { grid-template-columns: 1fr; }
+      .constraint-head, .constraint-row { grid-template-columns: repeat(var(--variable-count, 2), 76px) 60px 78px 30px; gap: 5px; }
+      .constraint-row input, .constraint-row select { padding: 8px 5px; font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header>
+      <div class="brand">OPTISOLVE</div>
+      <h1>Optimization, explained.</h1>
+      <p class="subtitle">Build a linear programming model, choose an algorithm, and get a numerical solution. Two-variable models can also receive a graphical explanation.</p>
+    </header>
+
+    <div class="layout">
+      <section class="panel">
+        <h2>Define your problem</h2>
+        <div class="natural-language">
+          <h3>Describe it in words <span class="muted">(beta)</span></h3>
+          <p class="note">Write the objective and each constraint explicitly. You can use symbols or phrases such as “plus”, “at most”, “at least”, and “equal to”. Parsing creates an editable draft; review it before solving.</p>
+          <label for="natural-language-text">Problem description</label>
+          <textarea id="natural-language-text" spellcheck="false" placeholder="Maximize Z = 3x1 plus 2x2
+Subject to:
+x1 plus x2 at most 4
+x1 at least 1
+x2 at least 1"></textarea>
+          <div class="parse-actions">
+            <button type="button" id="parse-natural-language">Parse into model</button>
+            <button type="button" class="secondary" id="load-language-example">Load example</button>
+          </div>
+          <div id="natural-language-status" class="parse-status" aria-live="polite"></div>
+        </div>
+        <form id="problem-form">
+          <div class="selects">
+            <div>
+              <label for="sense">Objective direction</label>
+              <select id="sense">
+                <option value="max">Maximize</option>
+                <option value="min">Minimize</option>
+              </select>
+            </div>
+            <div>
+              <label for="method">Algorithm</label>
+              <select id="method">
+                <option value="simplex">Standard Simplex</option>
+                <option value="two-phase">Two-Phase Simplex</option>
+                <option value="big-m">Big-M</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="variable-count">
+            <label for="variable-count">Number of decision variables (1–20)</label>
+            <input id="variable-count" type="number" min="1" max="20" step="1" value="2" required>
+            <p id="variable-count-error" class="note" hidden></p>
+          </div>
+
+          <h3>Objective function</h3>
+          <div id="objective-coefficients" class="objective-grid"></div>
+          <p class="muted" id="objective-preview">Maximize Z = 3x₁ + 5x₂</p>
+
+          <h3>Constraints <span class="muted">(up to 100)</span></h3>
+          <div class="constraint-scroll">
+            <div id="constraint-table" style="--variable-count: 2">
+              <div id="constraint-head" class="constraint-head"></div>
+              <div id="constraints"></div>
+            </div>
+          </div>
+          <button type="button" class="secondary" id="add-constraint">+ Add constraint</button>
+          <p class="note" id="method-note">Coefficients may be any finite real numbers, including negative, fractional, zero, and values larger than 50. Decision variables are nonnegative. Standard Simplex requires ≤ constraints with nonnegative RHS; Two-Phase and Big-M support ≤, ≥, = and signed RHS values. Big-M may be numerically sensitive for poorly scaled models.</p>
+          <p class="note">Variable bounds <strong>xᵢ ≥ 0 are built in</strong>. If you enter an explicit row such as x₁ ≥ 0 or x₂ ≥ 0, OptiSolve will recognize and ignore that redundant row automatically. Do not use this shortcut for a real constraint such as x₁ + x₂ ≥ 0.</p>
+          <button type="submit" class="primary" id="solve-button">Solve →</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Solution & explanation</h2>
+        <div id="empty-state" class="empty"><p>Your results will appear here.</p><p>Enter a problem and click Solve.</p></div>
+        <div id="results" hidden>
+          <div id="status" class="status"></div>
+          <div id="video-diagnostics" class="status warning" hidden></div>
+          <div class="metrics">
+            <div class="metric"><span>Objective value</span><strong id="objective-value">—</strong></div>
+            <div class="metric"><span>Solver status</span><strong id="solver-status">—</strong></div>
+          </div>
+          <h3>Decision variables</h3>
+          <div id="variable-values" class="variable-grid"></div>
+          <p class="note" id="iterations"></p>
+          <div class="trace-wrap" id="trace-wrap" hidden>
+            <h3>Algorithm steps</h3>
+            <p class="note" id="trace-note">These steps are recorded directly by the C++ solver.</p>
+            <div id="solver-trace" class="trace-list"></div>
+          </div>
+          <div class="video-wrap" id="trace-video-wrap" hidden>
+            <h3>Animated algorithm trace</h3>
+            <p class="muted">This video animates the tableaus and pivot decisions recorded by the C++ solver. For large tableaus, inspect the complete numerical matrices in Algorithm steps above.</p>
+            <video id="trace-solution-video" controls playsinline preload="metadata">Your browser does not support HTML video.</video>
+            <a class="video-link" id="open-trace-video" target="_blank" rel="noopener">Open algorithm trace separately</a>
+          </div>
+          <div class="video-wrap" id="video-wrap" hidden>
+            <h3>Graphical explanation</h3>
+            <p class="muted">For two-variable problems, watch the feasible set, constraint boundaries, corner-point evaluation, and optimal solution. Mixed inequalities and equality constraints are supported; equality-feasible sets may appear as a line or point.</p>
+            <video id="solution-video" controls playsinline preload="metadata">Your browser does not support HTML video.</video>
+            <a class="video-link" id="open-video" target="_blank" rel="noopener">Open graph video separately</a>
+          </div>
+          <details style="margin-top: 20px"><summary>Video renderer setup</summary>
+            <p class="note">Check whether this Fedora environment can render both Manim videos. This reports dependencies; a real solve verifies the full render.</p>
+            <button type="button" class="secondary" id="check-video-health">Check Manim / FFmpeg / LaTeX</button>
+            <pre id="video-health-output" class="video-health-output"></pre>
+          </details>
+          <details style="margin-top: 12px"><summary>Raw solver output</summary><pre id="raw-result"></pre></details>
+        </div>
+      </section>
+    </div>
+    <section class="panel seo-content" aria-labelledby="about-optisolve" style="margin-top:22px">
+      <h2 id="about-optisolve">An interactive linear programming solver</h2>
+      <p>OptiSolve helps students explore linear programming (LP) models, compare optimization methods, and inspect how a numerical solution is reached. Enter objective coefficients and constraints directly, or describe explicit equations in words and review the extracted model before solving.</p>
+      <h3>Explore Simplex, Two-Phase, and Big-M</h3>
+      <p>The solver supports Standard Simplex for its supported model class, plus Two-Phase Simplex and Big-M for mixed inequality and equality constraints. Algorithm walkthroughs record tableaus, reduced-cost decisions, ratio tests, pivot operations, and phase transitions.</p>
+      <h3>Visual explanations for optimization problems</h3>
+      <p>For two-variable problems, OptiSolve can generate a graphical explanation of constraint boundaries, the feasible region, and the optimal point. A separate Manim animation visualizes the recorded algorithm trace. Higher-dimensional models receive numerical solutions and algorithm traces rather than a misleading two-dimensional graph.</p>
+      <p class="note">OptiSolve is an educational tool. Review every model extracted from text, and independently verify important results before relying on them.</p>
+    </section>
+    <footer>OptiSolve · Interactive linear programming solver · C++ optimization engine · FastAPI · Manim · Web limits: 20 variables and 100 constraints<br><a href="/about">About OptiSolve</a> · <a href="/privacy">Privacy notice</a></footer>
+  </main>
+
+  <script>
+    const MAX_VARIABLES = 20;
+    const MAX_CONSTRAINTS = 100;
+    const form = document.getElementById("problem-form");
+    const variableCountInput = document.getElementById("variable-count");
+    const objectiveBox = document.getElementById("objective-coefficients");
+    const constraintsBox = document.getElementById("constraints");
+    const constraintHead = document.getElementById("constraint-head");
+    const constraintTable = document.getElementById("constraint-table");
+    const addButton = document.getElementById("add-constraint");
+    const solveButton = document.getElementById("solve-button");
+    const results = document.getElementById("results");
+    const emptyState = document.getElementById("empty-state");
+    const statusBox = document.getElementById("status");
+    const video = document.getElementById("solution-video");
+    const traceVideo = document.getElementById("trace-solution-video");
+    const videoDiagnostics = document.getElementById("video-diagnostics");
+    let variableCount = 2;
+
+    function labelForVariable(index) { return `x${index + 1}`; }
+
+    function numberFromInput(element) {
+      const value = Number(element.value);
+      if (element.value.trim() === "" || !Number.isFinite(value)) {
+        throw new Error("Enter a valid finite number in every field.");
+      }
+      return value;
+    }
+
+    function format(value) {
+      return Number(value).toLocaleString(undefined, { maximumFractionDigits: 8 });
+    }
+
+    function showStatus(message, type = "") {
+      statusBox.className = "status " + type;
+      statusBox.textContent = message;
+    }
+
+    function readObjectiveValues() {
+      return [...objectiveBox.querySelectorAll("input")].map(input => {
+        const value = Number(input.value);
+        return input.value.trim() !== "" && Number.isFinite(value) ? value : 0;
+      });
+    }
+
+    function readConstraintRows() {
+      return [...constraintsBox.querySelectorAll(".constraint-row")].map(row => ({
+        coefficients: [...row.querySelectorAll(".coef")].map(input => {
+          const value = Number(input.value);
+          return input.value.trim() !== "" && Number.isFinite(value) ? value : 0;
+        }),
+        relation: row.querySelector(".relation").value,
+        rhs: (() => {
+          const input = row.querySelector(".rhs");
+          const value = Number(input.value);
+          return input.value.trim() !== "" && Number.isFinite(value) ? value : 0;
+        })()
+      }));
+    }
+
+    function linearExpression(coefficients) {
+      const terms = [];
+      coefficients.forEach((coefficient, index) => {
+        if (Math.abs(coefficient) < 1e-12) return;
+        const magnitude = Math.abs(coefficient);
+        const num = magnitude === 1 ? "" : format(magnitude);
+        const term = `${num}${labelForVariable(index)}`;
+        if (terms.length === 0) terms.push(coefficient < 0 ? `−${term}` : term);
+        else terms.push(`${coefficient < 0 ? "−" : "+"} ${term}`);
+      });
+      return terms.length ? terms.join(" ") : "0";
+    }
+
+    function updatePreview() {
+      const direction = document.getElementById("sense").value === "max" ? "Maximize" : "Minimize";
+      document.getElementById("objective-preview").textContent =
+        `${direction} Z = ${linearExpression(readObjectiveValues())}`;
+    }
+
+    function renderObjective(values) {
+      objectiveBox.innerHTML = "";
+      for (let i = 0; i < variableCount; i++) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "objective-field";
+        const label = document.createElement("label");
+        label.htmlFor = `objective-${i}`;
+        label.textContent = `Coefficient of ${labelForVariable(i)}`;
+        const input = document.createElement("input");
+        input.id = `objective-${i}`;
+        input.type = "number";
+        input.step = "any";
+        input.required = true;
+        input.dataset.objectiveIndex = String(i);
+        input.value = String(values[i] ?? 0);
+        input.addEventListener("input", updatePreview);
+        wrapper.append(label, input);
+        objectiveBox.appendChild(wrapper);
+      }
+      updatePreview();
+    }
+
+    function renderConstraintHeader() {
+      constraintHead.innerHTML = "";
+      constraintTable.style.setProperty("--variable-count", variableCount);
+      for (let i = 0; i < variableCount; i++) {
+        const label = document.createElement("span");
+        label.textContent = `${labelForVariable(i)} coefficient`;
+        constraintHead.appendChild(label);
+      }
+      for (const text of ["Relation", "Right side", ""]) {
+        const span = document.createElement("span");
+        span.textContent = text;
+        constraintHead.appendChild(span);
+      }
+    }
+
+    function makeConstraintRow(record = {}) {
+      const coefficients = Array.from({ length: variableCount }, (_, i) => record.coefficients ? (record.coefficients[i] ?? 0) : (i < 2 ? 1 : 0));
+      const relation = record.relation ?? "<=";
+      const rhs = record.rhs ?? 5;
+      const row = document.createElement("div");
+      row.className = "constraint-row";
+
+      coefficients.forEach((value, index) => {
+        const input = document.createElement("input");
+        input.className = "coef";
+        input.type = "number";
+        input.step = "any";
+        input.required = true;
+        input.value = String(value);
+        input.setAttribute("aria-label", `Constraint coefficient for ${labelForVariable(index)}`);
+        row.appendChild(input);
+      });
+
+      const relationSelect = document.createElement("select");
+      relationSelect.className = "relation";
+      relationSelect.setAttribute("aria-label", "Constraint relation");
+      for (const [value, text] of [["<=", "≤"], [">=", "≥"], ["=", "="]]) {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = text;
+        option.selected = relation === value;
+        relationSelect.appendChild(option);
+      }
+      row.appendChild(relationSelect);
+
+      const rhsInput = document.createElement("input");
+      rhsInput.className = "rhs";
+      rhsInput.type = "number";
+      rhsInput.step = "any";
+      rhsInput.required = true;
+      rhsInput.value = String(rhs);
+      rhsInput.setAttribute("aria-label", "Constraint right-hand side");
+      row.appendChild(rhsInput);
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "remove";
+      removeButton.setAttribute("aria-label", "Remove constraint");
+      removeButton.textContent = "×";
+      removeButton.addEventListener("click", () => {
+        row.remove();
+        updateConstraintButtons();
+      });
+      row.appendChild(removeButton);
+      constraintsBox.appendChild(row);
+    }
+
+    function updateConstraintButtons() {
+      const rows = constraintsBox.querySelectorAll(".constraint-row");
+      constraintsBox.querySelectorAll(".remove").forEach(button => {
+        button.disabled = rows.length <= 1;
+      });
+      addButton.disabled = rows.length >= MAX_CONSTRAINTS;
+      addButton.textContent = rows.length >= MAX_CONSTRAINTS ? "Constraint limit reached (100)" : "+ Add constraint";
+    }
+
+    function changeVariableCount() {
+      const requested = Number(variableCountInput.value);
+      const countError = document.getElementById("variable-count-error");
+      if (!Number.isInteger(requested) || requested < 1 || requested > MAX_VARIABLES) {
+        variableCountInput.value = String(variableCount);
+        countError.textContent = `Choose an integer between 1 and ${MAX_VARIABLES} variables.`;
+        countError.hidden = false;
+        return;
+      }
+      countError.hidden = true;
+      if (requested === variableCount) return;
+
+      const oldObjective = readObjectiveValues();
+      const oldConstraints = readConstraintRows();
+      variableCount = requested;
+      renderObjective(oldObjective);
+      renderConstraintHeader();
+      constraintsBox.innerHTML = "";
+      oldConstraints.forEach(record => makeConstraintRow(record));
+      updateConstraintButtons();
+    }
+
+    function getVariableValue(value) {
+      return Number(value !== null && typeof value === "object" ? value.value : value);
+    }
+
+    function readablePhase(phase) {
+      return ({
+        simplex: "Standard Simplex",
+        phase_i: "Two-Phase · Phase I",
+        phase_ii: "Two-Phase · Phase II",
+        big_m: "Big-M"
+      })[phase] || phase || "Solver";
+    }
+
+    function readableEvent(event) {
+      return ({
+        phase_start: "Initial tableau",
+        pivot: "Pivot operation",
+        phase_transition: "Phase transition",
+        optimal: "Phase optimal",
+        infeasible: "Infeasible model",
+        unbounded: "Unbounded objective",
+        iteration_limit: "Iteration limit",
+        invalid_model: "Numerical/model error"
+      })[event] || event || "Step";
+    }
+
+    function traceNumber(value) {
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return String(value);
+      if (Math.abs(numeric) < 1e-9) return "0";
+      return numeric.toLocaleString(undefined, { maximumFractionDigits: 4 });
+    }
+
+    function renderTableau(step, container) {
+      if (!step.tableau_recorded || !Array.isArray(step.tableau)) {
+        const message = document.createElement("p");
+        message.className = "trace-meta";
+        message.textContent = "The matrix snapshot was omitted to keep the response size bounded; pivot metadata is still recorded.";
+        container.appendChild(message);
+        return;
+      }
+
+      const wrap = document.createElement("div");
+      wrap.className = "trace-table-wrap";
+      const table = document.createElement("table");
+      table.className = "trace-table";
+      const names = Array.isArray(step.column_names) ? step.column_names : [];
+      const head = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      const basicHeader = document.createElement("th");
+      basicHeader.textContent = "Basic";
+      headerRow.appendChild(basicHeader);
+      [...names, "RHS"].forEach(name => {
+        const th = document.createElement("th");
+        th.textContent = name;
+        headerRow.appendChild(th);
+      });
+      head.appendChild(headerRow);
+      table.appendChild(head);
+
+      const body = document.createElement("tbody");
+      const basis = Array.isArray(step.basis) ? step.basis : [];
+      step.tableau.forEach((row, rowIndex) => {
+        const tr = document.createElement("tr");
+        const rowHeader = document.createElement("td");
+        rowHeader.textContent = rowIndex < basis.length ? basis[rowIndex] : "Objective";
+        tr.appendChild(rowHeader);
+
+        row.forEach((value, columnIndex) => {
+          const td = document.createElement("td");
+          td.textContent = traceNumber(value);
+          if (step.event === "pivot" &&
+              step.pivot_row === rowIndex + 1 &&
+              step.pivot_column === columnIndex + 1) {
+            td.className = "pivot-cell";
+            td.title = "Pivot element";
+          }
+          tr.appendChild(td);
+        });
+        body.appendChild(tr);
+      });
+      table.appendChild(body);
+      wrap.appendChild(table);
+      container.appendChild(wrap);
+    }
+
+    function renderReducedCosts(step, container) {
+      const candidates = Array.isArray(step.reduced_costs) ? step.reduced_costs : [];
+      if (!candidates.length) return;
+
+      const title = document.createElement("p");
+      title.className = "reduced-cost-title";
+      title.textContent = "Entering-variable test — objective-row coefficients";
+      container.appendChild(title);
+
+      const explanation = document.createElement("p");
+      explanation.className = "reduced-cost-explanation";
+      explanation.textContent = "The solver uses Bland's rule: choose the first eligible non-artificial column with a negative bottom-row coefficient. It does not necessarily choose the most negative coefficient. The displayed value is the solver-normalized tableau objective-row coefficient (Zⱼ − Cⱼ for the normalized maximization tableau; minimization is sign-normalized internally).";
+      container.appendChild(explanation);
+
+      const wrap = document.createElement("div");
+      wrap.className = "trace-table-wrap";
+      const table = document.createElement("table");
+      table.className = "trace-table";
+      const head = document.createElement("thead");
+      const header = document.createElement("tr");
+      ["Variable", "Objective-row coefficient", "Decision"].forEach(label => {
+        const th = document.createElement("th");
+        th.textContent = label;
+        header.appendChild(th);
+      });
+      head.appendChild(header);
+      table.appendChild(head);
+
+      const body = document.createElement("tbody");
+      candidates.forEach(candidate => {
+        const row = document.createElement("tr");
+        if (candidate.selected) row.className = "reduced-selected";
+        else if (!candidate.eligible) row.className = "reduced-ineligible";
+
+        let decision;
+        if (candidate.selected) decision = "Selected by Bland's rule — enters";
+        else if (candidate.artificial) decision = "Artificial column excluded from entering candidates";
+        else if (candidate.eligible) decision = "Eligible, but later in Bland's order";
+        else decision = "Not eligible: coefficient is nonnegative";
+
+        [candidate.variable ?? "?", traceNumber(candidate.tableau_coefficient), decision].forEach((value, index) => {
+          const cell = document.createElement(index === 2 ? "th" : "td");
+          cell.textContent = String(value);
+          if (index === 2) cell.style.textAlign = "left";
+          row.appendChild(cell);
+        });
+        body.appendChild(row);
+      });
+      table.appendChild(body);
+      wrap.appendChild(table);
+      container.appendChild(wrap);
+    }
+
+    function renderRatioTests(step, container) {
+      const candidates = Array.isArray(step.ratio_tests) ? step.ratio_tests : [];
+      if (!candidates.length) return;
+
+      const title = document.createElement("p");
+      title.className = "ratio-test-title";
+      title.textContent = step.event === "pivot"
+        ? "Minimum-ratio test — why this row leaves the basis"
+        : "Ratio-test candidates";
+      container.appendChild(title);
+
+      const wrap = document.createElement("div");
+      wrap.className = "trace-table-wrap";
+      const table = document.createElement("table");
+      table.className = "trace-table";
+      const head = document.createElement("thead");
+      const header = document.createElement("tr");
+      ["Basic variable", "RHS", "Entering coefficient", "RHS / coefficient", "Decision"].forEach(label => {
+        const th = document.createElement("th");
+        th.textContent = label;
+        header.appendChild(th);
+      });
+      head.appendChild(header);
+      table.appendChild(head);
+
+      const body = document.createElement("tbody");
+      candidates.forEach(candidate => {
+        const row = document.createElement("tr");
+        const selected = step.event === "pivot" &&
+          candidate.basic_variable === step.leaving_variable;
+        if (selected) row.className = "ratio-selected";
+        else if (!candidate.eligible) row.className = "ratio-ineligible";
+
+        const decision = !candidate.eligible
+          ? "Ineligible (coefficient ≤ 0)"
+          : selected ? "Minimum — leaves basis" : "Eligible candidate";
+        const values = [
+          candidate.basic_variable ?? "?",
+          traceNumber(candidate.rhs),
+          traceNumber(candidate.entering_coefficient),
+          candidate.eligible ? traceNumber(candidate.ratio) : "—",
+          decision
+        ];
+        values.forEach((value, index) => {
+          const cell = document.createElement(index === 4 ? "th" : "td");
+          cell.textContent = value;
+          if (index === 4) cell.style.textAlign = "left";
+          row.appendChild(cell);
+        });
+        body.appendChild(row);
+      });
+      table.appendChild(body);
+      wrap.appendChild(table);
+      container.appendChild(wrap);
+    }
+
+    function renderRowOperations(step, container) {
+      const operations = Array.isArray(step.row_operations) ? step.row_operations : [];
+      if (step.event !== "pivot" || operations.length === 0) return;
+
+      const title = document.createElement("p");
+      title.className = "row-operation-title";
+      title.textContent = "Pivot row operations — how the tableau changes";
+      container.appendChild(title);
+
+      const note = document.createElement("p");
+      note.className = "reduced-cost-explanation";
+      note.textContent = "Apply these operations in order: normalize the pivot row first, then eliminate the entering-variable coefficient from every other row, including the objective row. Row numbers are 1-based.";
+      container.appendChild(note);
+
+      const wrap = document.createElement("div");
+      wrap.className = "trace-table-wrap";
+      const table = document.createElement("table");
+      table.className = "trace-table";
+      const head = document.createElement("thead");
+      const header = document.createElement("tr");
+      ["Step", "Row operation", "Factor"].forEach(label => {
+        const th = document.createElement("th");
+        th.textContent = label;
+        header.appendChild(th);
+      });
+      head.appendChild(header);
+      table.appendChild(head);
+
+      const basisCount = Array.isArray(step.basis) ? step.basis.length : 0;
+      const rowName = index => index === basisCount + 1 ? "Objective row" : `R${index}`;
+      const body = document.createElement("tbody");
+
+      operations.forEach((operation, index) => {
+        const target = rowName(Number(operation.target_row));
+        const source = rowName(Number(operation.source_row));
+        const factor = Number(operation.factor);
+        let formula;
+
+        if (operation.operation === "divide") {
+          formula = `${target} ← ${target} ÷ ${traceNumber(factor)}`;
+        } else if (operation.operation === "subtract_multiple") {
+          const sign = factor < 0 ? "+" : "−";
+          formula = `${target} ← ${target} ${sign} ${traceNumber(Math.abs(factor))} × ${source}`;
+        } else {
+          formula = `Unknown operation: ${operation.operation ?? "?"}`;
+        }
+
+        const row = document.createElement("tr");
+        const stepCell = document.createElement("td");
+        stepCell.textContent = String(index + 1);
+        const formulaCell = document.createElement("th");
+        formulaCell.textContent = formula;
+        formulaCell.style.textAlign = "left";
+        const factorCell = document.createElement("td");
+        factorCell.textContent = traceNumber(factor);
+        row.append(stepCell, formulaCell, factorCell);
+        body.appendChild(row);
+      });
+
+      table.appendChild(body);
+      wrap.appendChild(table);
+      container.appendChild(wrap);
+    }
+
+    function reconstructTableauFromOperations(step) {
+      if (!step.tableau_recorded || !Array.isArray(step.tableau) || !step.tableau.length) {
+        return { status: "unavailable", message: "The pivot's before-tableau snapshot was omitted." };
+      }
+      const matrix = step.tableau.map(row => Array.isArray(row) ? row.map(Number) : null);
+      if (matrix.some(row => !row || row.some(value => !Number.isFinite(value)))) {
+        return { status: "invalid", message: "The recorded before-tableau contains invalid values." };
+      }
+      const operations = Array.isArray(step.row_operations) ? step.row_operations : [];
+      if (!operations.length) {
+        return { status: "invalid", message: "No row operations were recorded for this pivot." };
+      }
+      for (const operation of operations) {
+        const target = Number(operation.target_row) - 1;
+        const source = Number(operation.source_row) - 1;
+        const factor = Number(operation.factor);
+        if (!Number.isInteger(target) || !Number.isInteger(source) ||
+            target < 0 || source < 0 || target >= matrix.length || source >= matrix.length ||
+            !Number.isFinite(factor)) {
+          return { status: "invalid", message: "A recorded row operation has invalid indexes or factor." };
+        }
+        if (operation.operation === "divide") {
+          if (Math.abs(factor) < 1e-12) {
+            return { status: "invalid", message: "A recorded row operation divides by zero." };
+          }
+          matrix[target] = matrix[target].map(value => value / factor);
+        } else if (operation.operation === "subtract_multiple") {
+          if (matrix[target].length !== matrix[source].length) {
+            return { status: "invalid", message: "A recorded row operation has mismatched row widths." };
+          }
+          matrix[target] = matrix[target].map((value, j) => value - factor * matrix[source][j]);
+        } else {
+          return { status: "invalid", message: `Unknown recorded row operation: ${operation.operation ?? "?"}` };
+        }
+      }
+      return { status: "ok", matrix };
+    }
+
+    function compareTableaus(actual, expected) {
+      if (!Array.isArray(expected) || actual.length !== expected.length) {
+        return { matches: false, maxDifference: Infinity };
+      }
+      let maxDifference = 0;
+      for (let i = 0; i < actual.length; i++) {
+        if (!Array.isArray(expected[i]) || actual[i].length !== expected[i].length) {
+          return { matches: false, maxDifference: Infinity };
+        }
+        for (let j = 0; j < actual[i].length; j++) {
+          const value = Number(expected[i][j]);
+          if (!Number.isFinite(value)) return { matches: false, maxDifference: Infinity };
+          maxDifference = Math.max(maxDifference, Math.abs(actual[i][j] - value));
+        }
+      }
+      return { matches: maxDifference <= 1e-6, maxDifference };
+    }
+
+    function appendBridgeMetric(grid, label, value, emphasized = false) {
+      const metric = document.createElement("div");
+      metric.className = "bridge-decision";
+      const title = document.createElement("span");
+      title.textContent = label;
+      const strong = document.createElement("strong");
+      strong.textContent = value;
+      if (emphasized) strong.style.color = "#a7f3d0";
+      metric.append(title, strong);
+      grid.appendChild(metric);
+    }
+
+    function renderNextIterationBridge(step, nextStep, container, terminalMaySkipEvents = false) {
+      if (step.event !== "pivot") return;
+
+      const bridge = document.createElement("section");
+      bridge.className = "iteration-bridge";
+      const heading = document.createElement("h4");
+      heading.textContent = "From this pivot to the next iteration";
+      bridge.appendChild(heading);
+
+      const reconstructed = reconstructTableauFromOperations(step);
+      const status = document.createElement("p");
+      status.className = "bridge-status";
+      if (!nextStep) {
+        status.classList.add("warning");
+        status.textContent = "The trace ends after this pivot; there is no following state to compare.";
+      } else if (terminalMaySkipEvents) {
+        status.classList.add("warning");
+        status.textContent = "The trace was truncated and the terminal event may replace omitted intermediate steps; this jump is not treated as a direct tableau transition.";
+      } else if (step.phase !== nextStep.phase) {
+        status.classList.add("warning");
+        status.textContent = "The next event changes solver phase, so the following tableau is not compared as a same-phase pivot result.";
+      } else if (!nextStep.tableau_recorded || !Array.isArray(nextStep.tableau)) {
+        status.classList.add("warning");
+        status.textContent = "The next tableau snapshot was omitted by trace size limits; pivot decision metadata is still shown below where available.";
+      } else if (reconstructed.status !== "ok") {
+        status.classList.add("warning");
+        status.textContent = reconstructed.message;
+      } else {
+        const comparison = compareTableaus(reconstructed.matrix, nextStep.tableau);
+        if (comparison.matches) {
+          status.classList.add("verified");
+          status.textContent = `Verified: applying ${step.row_operations.length} recorded row operations reproduces the next tableau (maximum absolute difference ${traceNumber(comparison.maxDifference)}).`;
+        } else {
+          status.classList.add("warning");
+          status.textContent = `Warning: reconstructed tableau differs from the next recorded tableau (maximum absolute difference ${traceNumber(comparison.maxDifference)}). Inspect this trace before relying on the explanation.`;
+        }
+      }
+      bridge.appendChild(status);
+
+      if (!nextStep) {
+        const explanation = document.createElement("p");
+        explanation.className = "bridge-explanation";
+        explanation.textContent = "No subsequent decision is available because the captured trace ends here.";
+        bridge.appendChild(explanation);
+        container.appendChild(bridge);
+        return;
+      }
+
+      const nextPhase = readablePhase(nextStep.phase);
+      if (nextStep.event === "pivot") {
+        const selectedCost = (nextStep.reduced_costs || []).find(item => item.selected);
+        const selectedRatio = (nextStep.ratio_tests || []).find(
+          item => item.basic_variable === nextStep.leaving_variable
+        );
+        const grid = document.createElement("div");
+        grid.className = "bridge-decision-grid";
+        appendBridgeMetric(
+          grid,
+          "Next entering variable",
+          selectedCost
+            ? `${selectedCost.variable} (coefficient ${traceNumber(selectedCost.tableau_coefficient)})`
+            : (nextStep.entering_variable || "Not recorded"),
+          true
+        );
+        appendBridgeMetric(
+          grid,
+          "Next leaving variable",
+          selectedRatio
+            ? `${selectedRatio.basic_variable} (ratio ${traceNumber(selectedRatio.ratio)})`
+            : (nextStep.leaving_variable || "Not recorded"),
+          true
+        );
+        appendBridgeMetric(
+          grid,
+          "Next pivot element",
+          nextStep.pivot_value === null || nextStep.pivot_value === undefined
+            ? "Not recorded" : traceNumber(nextStep.pivot_value)
+        );
+        bridge.appendChild(grid);
+
+        const candidateGrid = document.createElement("div");
+        candidateGrid.className = "bridge-decision-grid";
+        const reducedList = document.createElement("div");
+        const reducedTitle = document.createElement("p");
+        reducedTitle.className = "trace-meta";
+        reducedTitle.textContent = "Next tableau · reduced costs";
+        reducedList.appendChild(reducedTitle);
+        const reducedUl = document.createElement("ul");
+        reducedUl.className = "bridge-candidate-list";
+        (nextStep.reduced_costs || []).forEach(item => {
+          const li = document.createElement("li");
+          const state = item.selected ? "SELECTED to enter" : item.artificial ? "artificial / excluded" : item.eligible ? "eligible" : "not eligible";
+          li.textContent = `${item.variable}: ${traceNumber(item.tableau_coefficient)} — ${state}`;
+          reducedUl.appendChild(li);
+        });
+        reducedList.appendChild(reducedUl);
+
+        const ratioList = document.createElement("div");
+        const ratioTitle = document.createElement("p");
+        ratioTitle.className = "trace-meta";
+        ratioTitle.textContent = "Next tableau · ratio candidates";
+        ratioList.appendChild(ratioTitle);
+        const ratioUl = document.createElement("ul");
+        ratioUl.className = "bridge-candidate-list";
+        (nextStep.ratio_tests || []).forEach(item => {
+          const li = document.createElement("li");
+          const statusText = !item.eligible
+            ? "ineligible (pivot coefficient ≤ 0)"
+            : item.basic_variable === nextStep.leaving_variable
+              ? "minimum ratio — leaves"
+              : "eligible";
+          li.textContent = !item.eligible
+            ? `${item.basic_variable}: coefficient ${traceNumber(item.entering_coefficient)} — ${statusText}`
+            : `${item.basic_variable}: ${traceNumber(item.rhs)} / ${traceNumber(item.entering_coefficient)} = ${traceNumber(item.ratio)} — ${statusText}`;
+          ratioUl.appendChild(li);
+        });
+        ratioList.appendChild(ratioUl);
+        candidateGrid.append(reducedList, ratioList);
+        bridge.appendChild(candidateGrid);
+
+        const explain = document.createElement("p");
+        explain.className = "bridge-explanation";
+        explain.textContent = `The row operations produce the tableau for ${nextPhase}. The solver then applies the reduced-cost rule to choose ${nextStep.entering_variable}, followed by the minimum-ratio test to choose ${nextStep.leaving_variable}.`;
+        bridge.appendChild(explain);
+      } else if (nextStep.event === "optimal") {
+        const explain = document.createElement("p");
+        explain.className = "bridge-explanation";
+        explain.textContent = nextStep.phase === "phase_i"
+          ? "The new tableau leaves Phase I optimal. The solver now checks whether the artificial objective is zero and whether a feasible basis can proceed to Phase II."
+          : nextStep.phase === "phase_ii"
+            ? "The new tableau has no eligible improving reduced-cost coefficient, so Phase II has reached its optimum."
+            : "The new tableau has no eligible improving reduced-cost coefficient, so this simplex objective is optimal.";
+        bridge.appendChild(explain);
+      } else if (nextStep.event === "phase_transition") {
+        const explain = document.createElement("p");
+        explain.className = "bridge-explanation";
+        explain.textContent = "The new state completes Phase I processing; the solver is now preparing the Phase II objective and basis.";
+        bridge.appendChild(explain);
+      } else {
+        const explain = document.createElement("p");
+        explain.className = "bridge-explanation";
+        explain.textContent = `The next recorded event is “${readableEvent(nextStep.event)}” in ${nextPhase}.`;
+        bridge.appendChild(explain);
+      }
+
+      container.appendChild(bridge);
+    }
+
+    function renderSolverTrace(result) {
+      const traceWrap = document.getElementById("trace-wrap");
+      const traceBox = document.getElementById("solver-trace");
+      const note = document.getElementById("trace-note");
+      const trace = Array.isArray(result.trace) ? result.trace : [];
+      traceBox.replaceChildren();
+
+      if (trace.length === 0) {
+        traceWrap.hidden = true;
+        return;
+      }
+
+      traceWrap.hidden = false;
+      note.textContent = result.trace_truncated
+        ? "Trace size limits omitted some full tableaux. Recorded pivot choices and explanations are still shown."
+        : "Each step comes from the solver's actual tableau state. Pivot steps show the tableau before that pivot is applied.";
+      if (result.trace_truncated) note.classList.add("trace-truncated");
+      else note.classList.remove("trace-truncated");
+
+      trace.forEach((step, index) => {
+        const details = document.createElement("details");
+        details.className = "trace-step";
+        if (index === 0) details.open = true;
+        const summary = document.createElement("summary");
+        const iteration = Number(step.iteration || 0);
+        summary.textContent = `${index + 1}. ${readablePhase(step.phase)} · ${readableEvent(step.event)} · iteration ${iteration}`;
+        details.appendChild(summary);
+
+        const content = document.createElement("div");
+        content.className = "trace-step-content";
+        const explanation = document.createElement("p");
+        explanation.className = "trace-explanation";
+        explanation.textContent = step.explanation || "Solver state recorded.";
+        content.appendChild(explanation);
+
+        if (step.entering_variable || step.leaving_variable) {
+          const meta = document.createElement("p");
+          meta.className = "trace-meta";
+          const pieces = [];
+          if (step.entering_variable) pieces.push(`Entering: ${step.entering_variable}`);
+          if (step.leaving_variable) pieces.push(`Leaving: ${step.leaving_variable}`);
+          if (step.pivot_value !== null && step.pivot_value !== undefined) {
+            pieces.push(`Pivot element: ${traceNumber(step.pivot_value)}`);
+          }
+          meta.textContent = pieces.join(" · ");
+          content.appendChild(meta);
+        }
+
+        renderTableau(step, content);
+        renderReducedCosts(step, content);
+        renderRatioTests(step, content);
+        renderRowOperations(step, content);
+        const nextStep = trace[index + 1] || null;
+        const terminalMaySkipEvents = Boolean(
+          result.trace_truncated && index === trace.length - 2 && nextStep &&
+          ["optimal", "infeasible", "unbounded", "iteration_limit", "invalid_model"].includes(nextStep.event)
+        );
+        renderNextIterationBridge(step, nextStep, content, terminalMaySkipEvents);
+        details.appendChild(content);
+        traceBox.appendChild(details);
+      });
+    }
+
+    variableCountInput.addEventListener("change", changeVariableCount);
+    document.getElementById("sense").addEventListener("change", updatePreview);
+    document.getElementById("method").addEventListener("change", () => {
+      const method = document.getElementById("method").value;
+      if (method === "simplex") {
+        document.getElementById("method-note").textContent =
+          "Standard Simplex requires structural ≤ constraints with nonnegative RHS. Explicit xᵢ ≥ 0 variable-bound rows are ignored automatically. Two-Phase and Big-M also support other ≥, =, and negative RHS constraints. Coefficients can be any finite real numbers. Web limit: 20 variables and 100 constraints.";
+      } else {
+        document.getElementById("method-note").textContent =
+          `${method === "big-m" ? "Big-M can be numerically sensitive for poorly scaled models. " : "Two-Phase is generally preferred for numerical robustness. "}Supports ≤, ≥, = and negative RHS values. Explicit xᵢ ≥ 0 variable-bound rows are ignored automatically. Coefficients can be any finite real numbers. Web limit: 20 variables and 100 constraints.`;
+      }
+    });
+    addButton.addEventListener("click", () => {
+      if (constraintsBox.querySelectorAll(".constraint-row").length >= MAX_CONSTRAINTS) return;
+      const coefficients = Array.from({ length: variableCount }, (_, i) => i < 2 ? 1 : 0);
+      makeConstraintRow({ coefficients, relation: "<=", rhs: 5 });
+      updateConstraintButtons();
+    });
+
+    const naturalLanguageInput = document.getElementById("natural-language-text");
+    const naturalLanguageStatus = document.getElementById("natural-language-status");
+    const naturalLanguageExample = "Maximize Z = 3x1 plus 2x2\nSubject to:\nx1 plus x2 at most 4\nx1 at least 1\nx2 at least 1";
+
+    document.getElementById("load-language-example").addEventListener("click", () => {
+      naturalLanguageInput.value = naturalLanguageExample;
+      naturalLanguageStatus.className = "parse-status";
+      naturalLanguageStatus.textContent = "Example loaded. Click Parse into model to extract the LP.";
+    });
+
+    document.getElementById("parse-natural-language").addEventListener("click", async () => {
+      const text = naturalLanguageInput.value.trim();
+      naturalLanguageStatus.className = "parse-status";
+      naturalLanguageStatus.textContent = "Parsing the description…";
+      const button = document.getElementById("parse-natural-language");
+      button.disabled = true;
+      try {
+        const response = await fetch("/parse-problem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data);
+          throw new Error(detail);
+        }
+        const model = data.model;
+        variableCount = model.variable_count;
+        variableCountInput.value = String(variableCount);
+        renderObjective(model.objective_coefficients);
+        renderConstraintHeader();
+        constraintsBox.innerHTML = "";
+        model.constraints.forEach(record => makeConstraintRow(record));
+        updateConstraintButtons();
+        document.getElementById("sense").value = model.sense;
+        const needsPhaseI = model.constraints.some(c => c.relation !== "<=" || c.rhs < 0);
+        document.getElementById("method").value = needsPhaseI ? "two-phase" : "simplex";
+        document.getElementById("method").dispatchEvent(new Event("change"));
+        updatePreview();
+        naturalLanguageStatus.className = "parse-status success";
+        naturalLanguageStatus.textContent = `Draft extracted: ${model.variable_count} variable(s), ${model.constraint_count} constraint(s).\n\n${model.assumptions.join("\n")}\n\nReview the objective, every coefficient, each relation, and each RHS in the editable model below before clicking Solve.`;
+      } catch (error) {
+        naturalLanguageStatus.className = "parse-status error";
+        naturalLanguageStatus.textContent = "Could not parse this description: " + error.message;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      let payload;
+      try {
+        const objectiveCoefficients = [...objectiveBox.querySelectorAll("input")].map(numberFromInput);
+        const rows = [...constraintsBox.querySelectorAll(".constraint-row")];
+        if (rows.length === 0) throw new Error("Add at least one constraint.");
+        if (rows.length > MAX_CONSTRAINTS) throw new Error(`Use at most ${MAX_CONSTRAINTS} constraints.`);
+        const constraints = rows.map(row => ({
+          coefficients: [...row.querySelectorAll(".coef")].map(numberFromInput),
+          relation: row.querySelector(".relation").value,
+          rhs: numberFromInput(row.querySelector(".rhs"))
+        }));
+        payload = {
+          sense: document.getElementById("sense").value,
+          method: document.getElementById("method").value,
+          objective_coefficients: objectiveCoefficients,
+          constraints
+        };
+      } catch (error) {
+        emptyState.hidden = true;
+        results.hidden = false;
+        showStatus(error.message, "error");
+        return;
+      }
+
+      solveButton.disabled = true;
+      solveButton.textContent = "Solving…";
+      emptyState.hidden = true;
+      results.hidden = false;
+      document.getElementById("video-wrap").hidden = true;
+      document.getElementById("trace-video-wrap").hidden = true;
+      document.getElementById("trace-wrap").hidden = true;
+      videoDiagnostics.hidden = true;
+      videoDiagnostics.textContent = "";
+      video.removeAttribute("src");
+      video.load();
+      traceVideo.removeAttribute("src");
+      traceVideo.load();
+      showStatus("Running the selected C++ algorithm and preparing its recorded tableau trace. A separate 2D graph video is available for supported two-variable problems.");
+
+      try {
+        const response = await fetch("/solve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          const detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data);
+          throw new Error(detail);
+        }
+        const result = data.result;
+        if (!result) throw new Error("The API returned no solver result.");
+        document.getElementById("solver-status").textContent = String(result.status ?? "Unknown");
+        document.getElementById("iterations").textContent = `Method: ${result.method || payload.method} · Pivot iterations: ${result.iterations ?? "not reported"}`;
+
+        const solution = result.solution;
+        const optimal = String(result.status).toLowerCase() === "optimal" && solution;
+        const variableBox = document.getElementById("variable-values");
+        variableBox.innerHTML = "";
+        if (optimal) {
+          document.getElementById("objective-value").textContent = format(solution.objective_value);
+          (solution.variables || []).forEach((rawValue, index) => {
+            const item = document.createElement("div");
+            item.className = "variable-result";
+            const label = document.createElement("span");
+            label.textContent = labelForVariable(index);
+            const value = document.createElement("strong");
+            value.textContent = format(getVariableValue(rawValue));
+            item.append(label, value);
+            variableBox.appendChild(item);
+          });
+          showStatus(data.message || "Optimal solution found.", (data.video_url || data.trace_video_url) ? "success" : "");
+        } else {
+          document.getElementById("objective-value").textContent = "—";
+          showStatus(data.message || result.message || "The solver did not return an optimal solution.");
+        }
+
+        renderSolverTrace(result);
+        document.getElementById("raw-result").textContent = JSON.stringify(result, null, 2);
+        if (data.trace_video_url) {
+          const traceVideoUrl = data.trace_video_url + "?t=" + Date.now();
+          traceVideo.src = traceVideoUrl;
+          document.getElementById("open-trace-video").href = traceVideoUrl;
+          document.getElementById("trace-video-wrap").hidden = false;
+          traceVideo.load();
+        }
+        if (optimal && data.video_url) {
+          const videoUrl = data.video_url + "?t=" + Date.now();
+          video.src = videoUrl;
+          document.getElementById("open-video").href = videoUrl;
+          document.getElementById("video-wrap").hidden = false;
+          video.load();
+        }
+
+        const videoNotes = [];
+        if (data.trace_video_status === "generated" || data.trace_video_url) {
+          videoNotes.push("Algorithm trace MP4: ready.");
+        } else if (data.trace_video_error) {
+          videoNotes.push("Algorithm trace MP4 failed: " + data.trace_video_error);
+        } else {
+          videoNotes.push("Algorithm trace MP4: unavailable for this result.");
+        }
+        if (data.video_status === "generated" || data.video_url) {
+          videoNotes.push("Graph explanation MP4: ready.");
+        } else if (data.video_status === "failed" || data.video_error) {
+          videoNotes.push("Graph explanation MP4 failed: " + (data.video_error || "Unknown render error."));
+        } else if (payload.objective_coefficients.length !== 2 && optimal) {
+          videoNotes.push("Graph explanation MP4: not applicable to models with more than two variables.");
+        } else if (!optimal) {
+          videoNotes.push("Graph explanation MP4: skipped because the solver did not return an optimum.");
+        } else {
+          videoNotes.push("Graph explanation MP4: not generated.");
+        }
+        videoDiagnostics.textContent = videoNotes.join(" ");
+        videoDiagnostics.className = "status " + (
+          data.video_status === "failed" || data.trace_video_status === "failed" ? "warning" : "success"
+        );
+        videoDiagnostics.hidden = false;
+      } catch (error) {
+        showStatus("Could not solve the problem: " + error.message, "error");
+      } finally {
+        solveButton.disabled = false;
+        solveButton.textContent = "Solve →";
+      }
+    });
+
+    document.getElementById("check-video-health").addEventListener("click", async () => {
+      const output = document.getElementById("video-health-output");
+      output.textContent = "Checking local rendering prerequisites…";
+      try {
+        const response = await fetch("/video-health");
+        const health = await response.json();
+        if (!response.ok) throw new Error(JSON.stringify(health));
+        output.textContent = JSON.stringify(health, null, 2);
+      } catch (error) {
+        output.textContent = "Could not read video health: " + error.message;
+      }
+    });
+
+    // Initialize the model from the working two-variable example.
+    renderObjective([3, 5]);
+    renderConstraintHeader();
+    makeConstraintRow({ coefficients: [1, 0], relation: "<=", rhs: 4 });
+    makeConstraintRow({ coefficients: [0, 2], relation: "<=", rhs: 12 });
+    makeConstraintRow({ coefficients: [3, 2], relation: "<=", rhs: 18 });
+    updateConstraintButtons();
+  </script>
+</body>
+</html>
