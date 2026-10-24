@@ -1,6 +1,18 @@
-# OptiSolve v1.5 — Public Beta Preparation
+# OptiSolve — Interactive Linear Programming Solver & Visualizer
 
 OptiSolve is an educational linear-programming solver and algorithm visualizer. It combines a C++ optimization engine, FastAPI, a browser frontend, and Manim-generated videos.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/01-homepage.png" alt="OptiSolve interface" width="49%" />
+  <img src="docs/screenshots/02-solution.png" alt="Optimization results" width="49%" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/03-visualization.png" alt="Optimization visualization" width="49%" />
+  <img src="docs/screenshots/04-algorithm-trace.png" alt="Algorithm trace visualization" width="49%" />
+</p>
 
 ## Features
 
@@ -8,7 +20,7 @@ OptiSolve is an educational linear-programming solver and algorithm visualizer. 
 - Up to 20 decision variables and 100 constraints in the web interface.
 - Maximize/minimize and method-dependent support for `<=`, `>=`, and `=`.
 - Trace-backed tableaus, reduced-cost choices, minimum-ratio tests, pivot operations, and phase transitions.
-- For two-variable problems, a graphical explanation; for supported traces, a separate Manim algorithm video.
+- Dimension-aware visual explanations: 2D graphs for two variables, 3D feasible-region views for three, and variable/contribution profiles plus constraint diagnostics for four or more variables.
 - Conservative formula-style natural-language parsing. Extracted models are editable and must be reviewed before solving.
 - Per-solve workspaces and unique video URLs so outputs from separate jobs are not accidentally overwritten or cross-served.
 - Basic solve admission/rate limits, job cleanup, crawler metadata, `robots.txt`, sitemap, About/Privacy pages, and Docker+Caddy deployment files.
@@ -46,18 +58,29 @@ python scripts/e2e_smoke_v14.py http://127.0.0.1:8000
 
 Mocked API tests do not substitute for this real-render test.
 
-## Deploy publicly with Docker + Caddy
+## Run and demonstrate locally
 
-This project needs an environment capable of running C++ and rendering Manim/FFmpeg/LaTeX videos. The included VPS deployment is the recommended first public beta path.
+OptiSolve currently runs locally; a public hosted instance has not been deployed.
 
-1. Provision a Linux VPS, install Docker Engine and the Docker Compose plugin, and point your domain's DNS A record to the server.
-2. Allow inbound TCP 80 and 443 (UDP 443 is optional).
-3. `cp .env.example .env` and replace `DOMAIN` and `OPTISOLVE_BASE_URL` with a domain you actually own.
-4. Run `docker compose config`, then `docker compose up --build -d`.
-5. Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) and run the live end-to-end smoke test before sharing the URL.
-6. Follow [docs/GOOGLE_INDEXING.md](docs/GOOGLE_INDEXING.md) to submit the sitemap in Google Search Console.
+Start the Docker services:
 
-A real domain, DNS changes, a running public host, and Search Console verification require actions in accounts controlled by the owner. No domain is purchased or website deployed by this source package.
+    docker compose up -d --build
+
+Check the API:
+
+    curl -fsS http://localhost/healthz
+
+Run a real end-to-end test, including C++ solving and Manim video rendering:
+
+    ./.venv/bin/python scripts/e2e_smoke_v14.py http://localhost
+
+Open `http://localhost` in your browser to demonstrate the application.
+Run the automated tests with:
+
+    ./.venv/bin/python -m pytest -q tests/
+
+The end-to-end test complements the automated tests by performing real
+video rendering and checking MP4 delivery.
 
 ## Known limitations
 
@@ -65,7 +88,7 @@ A real domain, DNS changes, a running public host, and Search Console verificati
 - Generated job results and MP4s expire and can be removed by the cleanup cap; job-specific video links are temporary.
 - Public users who have a generated video's UUID-based URL can view it until cleanup. Do not submit sensitive or confidential LP models.
 - The natural-language parser handles explicit formula-style math wording; it is not a general business-story understanding system.
-- Graphs are two-dimensional. Higher-dimensional models get numerical results and algorithm-trace output.
+- Two-variable models receive 2D graph explanations, three-variable models receive 3D feasible-region views, and models with four or more variables receive variable/contribution profiles and constraint diagnostics alongside numerical results and algorithm traces.
 - Big-M may be numerically sensitive; compare with Two-Phase for difficult models.
 - Public indexing is not guaranteed. A sitemap and Search Console request improve discovery but do not guarantee a search position.
 
@@ -78,3 +101,17 @@ A real domain, DNS changes, a running public host, and Search Console verificati
 - [Solver correctness notes](README_SOLVER_CORRECTNESS_V10.md)
 - [Graph visualizer notes](README_VISUALIZER_V11.md)
 - [Natural-language parser notes](README_NATURAL_LANGUAGE_V13.md)
+
+## Video rendering quality
+
+OptiSolve renders Manim videos using the `OPTISOLVE_VIDEO_QUALITY` setting:
+
+- `high` (default): 1920x1080 at 30 fps.
+- `medium`: 1280x720 at 30 fps.
+- `low`: 480p at 15 fps.
+
+Set this variable in the project's `.env` file. Docker Compose forwards it to
+the application container. Higher-quality renders use more CPU time and may
+take longer, especially for large algorithm traces or high-dimensional models.
+Existing videos are not upgraded automatically; rerender a problem to produce
+a video at the newly selected quality.

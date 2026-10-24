@@ -12,14 +12,25 @@ from pathlib import Path
 
 from manim import *
 
-from lpp_geometry import (
-    actual_vertices,
-    boundary_segment,
-    clip_region,
-    feasible_viewport_points,
-    point_satisfies_constraints,
-    polygon_area,
-)
+try:
+    from .lpp_geometry import (
+        actual_vertices,
+        boundary_segment,
+        clip_region,
+        feasible_viewport_points,
+        point_satisfies_constraints,
+        polygon_area,
+    )
+except ImportError:
+    # Manim may load this scene directly from its file path.
+    from lpp_geometry import (
+        actual_vertices,
+        boundary_segment,
+        clip_region,
+        feasible_viewport_points,
+        point_satisfies_constraints,
+        polygon_area,
+    )
 
 ROOT = Path(__file__).resolve().parents[1]
 JSON_FILE = Path(os.environ.get("OPTISOLVE_RESULT_JSON", ROOT / "solver" / "optisolve_result.json")).expanduser().resolve()

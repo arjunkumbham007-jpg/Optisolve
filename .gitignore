@@ -69,3 +69,8 @@ visualizer/lpp_animation_v[0-9]*.py
 # Historical development notes
 README_*_V*.md
 TRACE_*_README.md
+
+# Exclude local backup artifacts
+*.bak
+*.bak-*
+*.before-*

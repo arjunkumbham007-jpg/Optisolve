@@ -91,3 +91,45 @@ def test_parser_documents_scope_and_review_in_capabilities():
     data = response.json()
     assert data["natural_language_endpoint"] == "/parse-problem"
     assert "does not infer arbitrary business prose" in data["natural_language_parser"]
+
+
+def test_llm_extracted_model_is_validated_and_keeps_frontend_contract():
+    from api.natural_language_llm import validate_extracted_model
+
+    model = validate_extracted_model({
+        "sense": "max",
+        "objective_coefficients": [30, 50],
+        "constraints": [{"coefficients": [2, 3], "relation": "<=", "rhs": 100}],
+        "variable_labels": ["Product A", "Product B"],
+        "assumptions": ["Profit per unit is taken from the question."],
+        "clarification_questions": [],
+    })
+    assert model["objective_coefficients"] == [30.0, 50.0]
+    assert model["variable_count"] == 2
+    assert model["constraint_count"] == 1
+    assert model["constraints"][0] == {"coefficients": [2.0, 3.0], "relation": "<=", "rhs": 100.0}
+    assert "Decision-variable mapping: x1 = Product A; x2 = Product B." in model["assumptions"]
+    assert model["extraction_method"] == "llm"
+
+
+def test_llm_extraction_rejects_ambiguous_problem():
+    from api.natural_language_llm import validate_extracted_model
+
+    with pytest.raises(ValueError, match="Please clarify"):
+        validate_extracted_model({
+            "clarification_questions": ["What is the available labor capacity?"],
+        })
+
+
+def test_llm_extraction_rejects_mismatched_constraint_dimensions():
+    from api.natural_language_llm import validate_extracted_model
+
+    with pytest.raises(ValueError, match="exactly 2 coefficients"):
+        validate_extracted_model({
+            "sense": "max",
+            "objective_coefficients": [3, 2],
+            "constraints": [{"coefficients": [1], "relation": "<=", "rhs": 4}],
+            "variable_labels": ["A", "B"],
+            "assumptions": [],
+            "clarification_questions": [],
+        })

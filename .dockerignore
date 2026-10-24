@@ -17,3 +17,9 @@ solver/optisolve_result.json
 *.log
 .DS_Store
 *~
+
+# Exclude local backup artifacts
+*.bak
+*.bak-*
+*.before-*
+*_backup_*/

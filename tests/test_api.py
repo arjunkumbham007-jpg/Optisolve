@@ -142,13 +142,16 @@ def mock_pipeline(monkeypatch, tmp_path):
     manim.write_text("test placeholder", encoding="utf-8")
     trace_animation = tmp_path / "algorithm_trace_animation.py"
     graph_animation = tmp_path / "lpp_animation.py"
+    highdim_animation = tmp_path / "lpp_highdim_animation.py"
     trace_animation.write_text("# mocked scene path", encoding="utf-8")
     graph_animation.write_text("# mocked graph scene path", encoding="utf-8")
+    highdim_animation.write_text("# mocked high-dimensional scene path", encoding="utf-8")
     jobs_dir = tmp_path / "jobs"
     monkeypatch.setattr(api, "BINARY", binary)
     monkeypatch.setattr(api, "MANIM", manim)
     monkeypatch.setattr(api, "TRACE_ANIMATION", trace_animation)
     monkeypatch.setattr(api, "ANIMATION", graph_animation)
+    monkeypatch.setattr(api, "HIGH_DIM_ANIMATION", highdim_animation)
     monkeypatch.setattr(api, "JOBS_DIR", jobs_dir)
 
     calls = []
@@ -168,9 +171,14 @@ def mock_pipeline(monkeypatch, tmp_path):
             media_dir = Path(args[args.index("--media_dir") + 1])
             scene_file = Path(args[-2])
             scene_name = args[-1]
-            output_path = media_dir / "videos" / scene_file.stem / "480p15" / f"{scene_name}.mp4"
+            output_path = media_dir / "videos" / scene_file.stem / api.VIDEO_QUALITY_DIR / f"{scene_name}.mp4"
             output_path.parent.mkdir(parents=True, exist_ok=True)
-            prefix = "test trace video" if scene_name == "AlgorithmTraceAnimation" else "test graph video"
+            if scene_name == "AlgorithmTraceAnimation":
+                prefix = "test trace video"
+            elif scene_name == "LPPHighDimAnimation":
+                prefix = "test highdim video"
+            else:
+                prefix = "test graph video"
             output_path.write_bytes(f"{prefix}:{media_dir.parent.name}".encode("utf-8"))
             outputs.append(output_path)
         return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
@@ -204,9 +212,11 @@ def test_video_health_endpoint_reports_local_prerequisites():
     assert "manim" in data and "available" in data["manim"]
     assert data["scenes"]["graph"]["available"] is True
     assert data["scenes"]["algorithm_trace"]["available"] is True
+    assert data["scenes"]["high_dimensional"]["available"] is True
     assert set(data["tools"]) == {"ffmpeg", "ffprobe", "latex", "dvisvgm"}
     assert "graph" in data["expected_outputs"]
     assert "algorithm_trace" in data["expected_outputs"]
+    assert "high_dimensional" in data["expected_outputs"]
 
 
 def test_capabilities_endpoint_documents_limits():
@@ -340,7 +350,7 @@ def test_successful_solve_and_video(mock_pipeline):
     assert video_response.headers.get("x-robots-tag") == "noindex, nofollow"
 
 
-def test_three_variables_are_passed_to_cpp_and_skip_2d_video(mock_pipeline):
+def test_three_variables_are_passed_to_cpp_and_use_3d_video(mock_pipeline):
     payload = {
         "sense": "max",
         "method": "two-phase",
@@ -357,11 +367,12 @@ def test_three_variables_are_passed_to_cpp_and_skip_2d_video(mock_pipeline):
     data = response.json()
     assert data["result"]["solution"]["variables"] == [2, 3, 4]
     assert data["result"]["solution"]["objective_value"] == 9
-    assert data["video_url"] is None
-    assert data["video_status"] == "not_applicable"
+    assert data["video_url"] == f"/jobs/{data['job_id']}/video"
+    assert data["video_status"] == "generated"
+    assert data["visualization_type"] == "3d"
+    assert "3D graphical explanation" in data["message"]
     assert data["trace_video_url"] == f"/jobs/{data['job_id']}/trace-video"
-    assert "exactly two decision variables" in data["message"]
-    assert len(mock_pipeline["calls"]) == 2
+    assert len(mock_pipeline["calls"]) == 3
     input_lines = mock_pipeline["inputs"][0].splitlines()
     assert input_lines[0:3] == ["max", "3", "4"]
     assert input_lines[3] == "1 1 1"
@@ -399,7 +410,16 @@ def test_accepts_20_variables_and_100_constraints(mock_pipeline):
     }
     response = client.post("/solve", json=payload)
     assert response.status_code == 200
-    assert response.json()["video_url"] is None
+    data = response.json()
+    assert data["video_url"] == f"/jobs/{data['job_id']}/video"
+    assert data["video_status"] == "generated"
+    assert data["visualization_type"] == "highdim"
+    assert data["trace_video_url"] == f"/jobs/{data['job_id']}/trace-video"
+    video_response = client.get(data["video_url"])
+    assert video_response.status_code == 200
+    assert video_response.content == f"test highdim video:{data['job_id']}".encode("utf-8")
+    assert len(mock_pipeline["calls"]) == 3
+    assert mock_pipeline["calls"][-1][-1] == "LPPHighDimAnimation"
     input_lines = mock_pipeline["inputs"][0].splitlines()
     assert input_lines[0:3] == ["max", "20", "100"]
     assert input_lines[3] == " ".join(["1"] * 20)
@@ -511,7 +531,7 @@ def test_nonoptimal_result_does_not_render_graph_video(monkeypatch, tmp_path):
             result_file.write_text(json.dumps(result), encoding="utf-8")
         elif args[-1] == "AlgorithmTraceAnimation":
             media_dir = Path(args[args.index("--media_dir") + 1])
-            out = media_dir / "videos" / Path(args[-2]).stem / "480p15" / "AlgorithmTraceAnimation.mp4"
+            out = media_dir / "videos" / Path(args[-2]).stem / api.VIDEO_QUALITY_DIR / "AlgorithmTraceAnimation.mp4"
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_bytes(b"test trace video")
         return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
@@ -553,7 +573,7 @@ def test_graph_render_failure_is_reported_without_stale_video(monkeypatch, tmp_p
             return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")
         if args[-1] == "AlgorithmTraceAnimation":
             media_dir = Path(args[args.index("--media_dir") + 1])
-            out = media_dir / "videos" / Path(args[-2]).stem / "480p15" / "AlgorithmTraceAnimation.mp4"
+            out = media_dir / "videos" / Path(args[-2]).stem / api.VIDEO_QUALITY_DIR / "AlgorithmTraceAnimation.mp4"
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_bytes(b"fresh trace video")
             return subprocess.CompletedProcess(args=args, returncode=0, stdout="", stderr="")

@@ -146,7 +146,7 @@
     <header>
       <div class="brand">OPTISOLVE</div>
       <h1>Optimization, explained.</h1>
-      <p class="subtitle">Build a linear programming model, choose an algorithm, and get a numerical solution. Two-variable models can also receive a graphical explanation.</p>
+      <p class="subtitle">Build a linear programming model, choose an algorithm, and get a numerical solution. Two-variable models receive a 2D graph, and three-variable models can receive a 3D visualization.</p>
     </header>
 
     <div class="layout">
@@ -235,8 +235,8 @@ x2 at least 1"></textarea>
             <a class="video-link" id="open-trace-video" target="_blank" rel="noopener">Open algorithm trace separately</a>
           </div>
           <div class="video-wrap" id="video-wrap" hidden>
-            <h3>Graphical explanation</h3>
-            <p class="muted">For two-variable problems, watch the feasible set, constraint boundaries, corner-point evaluation, and optimal solution. Mixed inequalities and equality constraints are supported; equality-feasible sets may appear as a line or point.</p>
+            <h3 id="graph-video-heading">Graphical explanation</h3>
+            <p class="muted" id="graph-video-description">For two-variable problems, view the feasible region, constraint boundaries, corner points, and optimum. Three-variable problems receive a 3D view; unbounded views are clipped to the display window and labelled.</p>
             <video id="solution-video" controls playsinline preload="metadata">Your browser does not support HTML video.</video>
             <a class="video-link" id="open-video" target="_blank" rel="noopener">Open graph video separately</a>
           </div>
@@ -255,7 +255,7 @@ x2 at least 1"></textarea>
       <h3>Explore Simplex, Two-Phase, and Big-M</h3>
       <p>The solver supports Standard Simplex for its supported model class, plus Two-Phase Simplex and Big-M for mixed inequality and equality constraints. Algorithm walkthroughs record tableaus, reduced-cost decisions, ratio tests, pivot operations, and phase transitions.</p>
       <h3>Visual explanations for optimization problems</h3>
-      <p>For two-variable problems, OptiSolve can generate a graphical explanation of constraint boundaries, the feasible region, and the optimal point. A separate Manim animation visualizes the recorded algorithm trace. Higher-dimensional models receive numerical solutions and algorithm traces rather than a misleading two-dimensional graph.</p>
+      <p>For two-variable problems, OptiSolve generates a 2D feasible-region graph. Three-variable problems can receive a 3D visualization of feasible faces, constraint planes, and the optimal point. Four-or-more-variable models still receive numerical solutions and algorithm traces, not a misleading 2D plot.</p>
       <p class="note">OptiSolve is an educational tool. Review every model extracted from text, and independently verify important results before relying on them.</p>
     </section>
     <footer>OptiSolve · Interactive linear programming solver · C++ optimization engine · FastAPI · Manim · Web limits: 20 variables and 100 constraints<br><a href="/about">About OptiSolve</a> · <a href="/privacy">Privacy notice</a></footer>
@@ -1106,7 +1106,7 @@ x2 at least 1"></textarea>
       video.load();
       traceVideo.removeAttribute("src");
       traceVideo.load();
-      showStatus("Running the selected C++ algorithm and preparing its recorded tableau trace. A separate 2D graph video is available for supported two-variable problems.");
+      showStatus("Running the selected C++ algorithm and preparing its recorded tableau trace. Two-variable models use a 2D graph; three-variable models use a 3D visualization.");
 
       try {
         const response = await fetch("/solve", {
@@ -1155,6 +1155,18 @@ x2 at least 1"></textarea>
           document.getElementById("trace-video-wrap").hidden = false;
           traceVideo.load();
         }
+        const graphVideoHeading = document.getElementById("graph-video-heading");
+        const graphVideoDescription = document.getElementById("graph-video-description");
+        if (data.visualization_type === "highdim") {
+          graphVideoHeading.textContent = "High-dimensional solution profile";
+          graphVideoDescription.textContent = "For four or more variables, this video summarizes optimal variable values, objective contributions, and constraint slack, surplus, residuals, and applicable utilization. It is not a geometric picture of the full high-dimensional feasible region.";
+        } else if (data.visualization_type === "3d") {
+          graphVideoHeading.textContent = "3D graphical explanation";
+          graphVideoDescription.textContent = "This 3D view shows the optimal point and feasible polyhedron when bounded. For unbounded models, constraint planes are clipped to the view and the clipping is labelled; the numerical solver remains authoritative.";
+        } else {
+          graphVideoHeading.textContent = "Graphical explanation";
+          graphVideoDescription.textContent = "For two-variable problems, view the feasible region, constraint boundaries, corner points, and optimum. Three-variable problems receive a 3D view; unbounded views are clipped to the display window and labelled.";
+        }
         if (optimal && data.video_url) {
           const videoUrl = data.video_url + "?t=" + Date.now();
           video.src = videoUrl;
@@ -1172,15 +1184,19 @@ x2 at least 1"></textarea>
           videoNotes.push("Algorithm trace MP4: unavailable for this result.");
         }
         if (data.video_status === "generated" || data.video_url) {
-          videoNotes.push("Graph explanation MP4: ready.");
+          if (data.visualization_type === "highdim") {
+            videoNotes.push("High-dimensional solution profile MP4: ready.");
+          } else if (data.visualization_type === "3d") {
+            videoNotes.push("3D graph explanation MP4: ready.");
+          } else {
+            videoNotes.push("2D graph explanation MP4: ready.");
+          }
         } else if (data.video_status === "failed" || data.video_error) {
-          videoNotes.push("Graph explanation MP4 failed: " + (data.video_error || "Unknown render error."));
-        } else if (payload.objective_coefficients.length !== 2 && optimal) {
-          videoNotes.push("Graph explanation MP4: not applicable to models with more than two variables.");
+          videoNotes.push("Visualization MP4 failed: " + (data.video_error || "Unknown render error."));
         } else if (!optimal) {
-          videoNotes.push("Graph explanation MP4: skipped because the solver did not return an optimum.");
+          videoNotes.push("Visualization MP4: skipped because the solver did not return an optimum.");
         } else {
-          videoNotes.push("Graph explanation MP4: not generated.");
+          videoNotes.push("Visualization MP4: not generated.");
         }
         videoDiagnostics.textContent = videoNotes.join(" ");
         videoDiagnostics.className = "status " + (

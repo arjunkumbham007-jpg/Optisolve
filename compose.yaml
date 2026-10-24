@@ -4,6 +4,7 @@ services:
     environment:
       OPTISOLVE_ENV: ${OPTISOLVE_ENV:-production}
       OPTISOLVE_BASE_URL: ${OPTISOLVE_BASE_URL:?Set OPTISOLVE_BASE_URL in .env}
+      OPTISOLVE_VIDEO_QUALITY: ${OPTISOLVE_VIDEO_QUALITY:-high}
       OPTISOLVE_RUNTIME_DIR: /app/runtime
       OPTISOLVE_JOB_TTL_HOURS: ${OPTISOLVE_JOB_TTL_HOURS:-24}
       OPTISOLVE_MAX_STORED_JOBS: ${OPTISOLVE_MAX_STORED_JOBS:-100}
@@ -37,7 +38,7 @@ services:
       - "443:443"
       - "443:443/udp"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,Z
       - caddy_data:/data
       - caddy_config:/config
     networks:

@@ -29,7 +29,7 @@ def point_satisfies_constraints(
     for constraint in constraints:
         lhs = _lhs(constraint, point)
         rhs = float(constraint["rhs"])
-        relation = constraint["relation"]
+        relation = constraint.get("relation", "<=")
         tol = eps * max(1.0, abs(lhs), abs(rhs))
         if relation == "<=" and lhs > rhs + tol:
             return False
@@ -151,7 +151,7 @@ def clip_region(
     Equality-constrained feasible sets can be a line or a point rather than a
     polygon. For those cases use actual_vertices() instead of a filled region.
     """
-    if any(c["relation"] == "=" for c in constraints):
+    if any(c.get("relation", "<=") == "=" for c in constraints):
         return []
 
     polygon: list[Point] = [
@@ -163,7 +163,7 @@ def clip_region(
     for constraint in constraints:
         a, b = map(float, constraint["coefficients"])
         rhs = float(constraint["rhs"])
-        relation = constraint["relation"]
+        relation = constraint.get("relation", "<=")
         if relation == "<=":
             polygon = _clip_polygon(polygon, a, b, rhs, eps)
         elif relation == ">=":

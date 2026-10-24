@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, Response
 from pydantic import BaseModel, Field
 
-from .natural_language import parse_natural_language_problem
+from .natural_language_llm import extract_problem
 
 ROOT = Path(__file__).resolve().parents[1]
 SOLVER_DIR = ROOT / "solver"
@@ -46,9 +46,22 @@ def discover_manim() -> Path:
 
 MANIM = discover_manim()
 ANIMATION = ROOT / "visualizer" / "lpp_animation.py"
+THREE_D_ANIMATION = ROOT / "visualizer" / "lpp_3d_animation.py"
+HIGH_DIM_ANIMATION = ROOT / "visualizer" / "lpp_highdim_animation.py"
 TRACE_ANIMATION = ROOT / "visualizer" / "algorithm_trace_animation.py"
 MAX_VARIABLES = 20
 MAX_CONSTRAINTS = 100
+# Select render quality via OPTISOLVE_VIDEO_QUALITY=high|medium|low.
+VIDEO_QUALITY_PROFILES = {
+    "low": (("-ql",), "480p15"),
+    "medium": (("--resolution", "1280,720", "--fps", "30"), "720p30"),
+    "high": (("--resolution", "1920,1080", "--fps", "30"), "1080p30"),
+}
+VIDEO_QUALITY = os.environ.get("OPTISOLVE_VIDEO_QUALITY", "high").strip().lower()
+if VIDEO_QUALITY not in VIDEO_QUALITY_PROFILES:
+    raise ValueError("OPTISOLVE_VIDEO_QUALITY must be high, medium, or low.")
+VIDEO_QUALITY_ARGS, VIDEO_QUALITY_DIR = VIDEO_QUALITY_PROFILES[VIDEO_QUALITY]
+VIDEO_QUALITY_DIRS = ("1080p30", "720p30", "480p15")
 
 PRODUCTION = os.environ.get("OPTISOLVE_ENV", "development").lower() == "production"
 app = FastAPI(
@@ -145,7 +158,11 @@ def run_manim(
     env["OPTISOLVE_RESULT_JSON"] = str(result_json.resolve())
     try:
         process = subprocess.run(
-            [str(MANIM), "-ql", "--media_dir", str(media_dir.resolve()), str(scene_file), scene_name],
+            [
+                str(MANIM), *VIDEO_QUALITY_ARGS,
+                "--media_dir", str(media_dir.resolve()),
+                str(scene_file), scene_name,
+            ],
             text=True,
             capture_output=True,
             cwd=ROOT,
@@ -167,7 +184,19 @@ def run_manim(
 
 
 def job_video_path(job_dir: Path, scene_stem: str, scene_name: str) -> Path:
-    return job_dir / "media" / "videos" / scene_stem / "480p15" / f"{scene_name}.mp4"
+    """Find existing videos at any supported quality; otherwise return the selected output path."""
+    quality_dirs = tuple(dict.fromkeys((VIDEO_QUALITY_DIR, *VIDEO_QUALITY_DIRS)))
+    candidates = [
+        job_dir / "media" / "videos" / scene_stem / quality_dir / f"{scene_name}.mp4"
+        for quality_dir in quality_dirs
+    ]
+    for candidate in candidates:
+        try:
+            if candidate.is_file() and candidate.stat().st_size > 0:
+                return candidate
+        except OSError:
+            pass
+    return candidates[0]
 
 
 def cleanup_old_jobs() -> None:
@@ -350,11 +379,13 @@ def video_health():
         "scenes": {
             "graph": {"path": str(ANIMATION), "available": ANIMATION.is_file()},
             "algorithm_trace": {"path": str(TRACE_ANIMATION), "available": TRACE_ANIMATION.is_file()},
+            "high_dimensional": {"path": str(HIGH_DIM_ANIMATION), "available": HIGH_DIM_ANIMATION.is_file()},
         },
         "tools": {name: {"path": path, "available": bool(path)} for name, path in tools.items()},
         "expected_outputs": {
-            "graph": "runtime/jobs/<job-id>/media/videos/lpp_animation/480p15/LPPAnimation.mp4",
-            "algorithm_trace": "runtime/jobs/<job-id>/media/videos/algorithm_trace_animation/480p15/AlgorithmTraceAnimation.mp4",
+            "graph": f"runtime/jobs/<job-id>/media/videos/lpp_animation/{VIDEO_QUALITY_DIR}/LPPAnimation.mp4",
+            "algorithm_trace": f"runtime/jobs/<job-id>/media/videos/algorithm_trace_animation/{VIDEO_QUALITY_DIR}/AlgorithmTraceAnimation.mp4",
+            "high_dimensional": f"runtime/jobs/<job-id>/media/videos/lpp_highdim_animation/{VIDEO_QUALITY_DIR}/LPPHighDimAnimation.mp4",
         },
         "note": "Each solve uses a separate workspace; run a real solve to verify MP4 rendering.",
     }
@@ -369,7 +400,7 @@ def parse_problem(request: NaturalLanguageRequest):
     user before it is submitted to /solve.
     """
     try:
-        model = parse_natural_language_problem(request.text)
+        model = extract_problem(request.text)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {
@@ -384,7 +415,7 @@ def capabilities():
     return {
         "max_variables": MAX_VARIABLES,
         "max_constraints": MAX_CONSTRAINTS,
-        "natural_language_parser": "conservative formula-style parser; explicit LP equations phrased with math words; requires user review; does not infer arbitrary business prose",
+        "natural_language_parser": "hybrid: deterministic parser for explicit LP equations, plus optional OpenAI-compatible LLM extraction for business prose when OPTISOLVE_LLM_API_KEY is configured; does not infer arbitrary business prose without LLM support; requires user review",
         "natural_language_endpoint": "/parse-problem",
         "coefficients": "any finite real value; no arbitrary 1..50 limit",
         "variable_domain": "nonnegative variables; redundant explicit x_i >= 0 rows are recognized and removed before solving",
@@ -394,7 +425,7 @@ def capabilities():
             "two-phase": "max/min with <=, >=, = constraints and signed RHS",
             "big-m": "max/min with <=, >=, = constraints and signed RHS",
         },
-        "graph_visualizer": "supports exactly two variables with <=, >=, and = constraints, signed RHS values, and nonnegative variable domains; the displayed view is clipped to its plotting window",
+        "graph_visualizer": "2D feasible-region graph for two variables and 3D feasible-region/constraint-plane visualization for three variables; unbounded 3D views are clipped and labelled",
         "algorithm_trace_video": "tableau trace animation for supported recorded trace events; larger tableaus may be summarized for readability",
     }
 
@@ -463,6 +494,8 @@ def solve(problem: LPPRequest, _guard: None = Depends(solve_guard)):
     result_file = job_dir / "optisolve_result.json"
     media_dir = job_dir / "media"
     graph_video = job_video_path(job_dir, "lpp_animation", "LPPAnimation")
+    three_d_video = job_video_path(job_dir, "lpp_3d_animation", "LPP3DAnimation")
+    highdim_video = job_video_path(job_dir, "lpp_highdim_animation", "LPPHighDimAnimation")
     trace_video = job_video_path(job_dir, "algorithm_trace_animation", "AlgorithmTraceAnimation")
 
     try:
@@ -522,6 +555,96 @@ def solve(problem: LPPRequest, _guard: None = Depends(solve_guard)):
             "trace_video_error": trace_video_error,
             "video_status": "not_applicable",
             "video_error": None,
+            "message": message,
+            "ignored_redundant_nonnegativity_constraints": ignored_nonnegativity_count,
+        }
+
+    if variable_count == 3:
+        graph_ok, graph_error = run_manim(
+            THREE_D_ANIMATION, "LPP3DAnimation",
+            result_json=result_file, media_dir=media_dir, timeout=180,
+        )
+        if not graph_ok or not nonempty_video(three_d_video):
+            error = graph_error or "Manim did not create a non-empty 3D graph MP4."
+            message = add_nonnegativity_notice(
+                "The numerical solution was found, but the 3D visualization failed. " + error,
+                ignored_nonnegativity_count,
+            )
+            return {
+                "result": result,
+                "job_id": job_id,
+                "video_url": None,
+                "trace_video_url": trace_video_url,
+                "trace_video_status": trace_video_status,
+                "trace_video_error": trace_video_error,
+                "video_status": "failed",
+                "video_error": error,
+                "visualization_type": "3d",
+                "message": message,
+                "ignored_redundant_nonnegativity_constraints": ignored_nonnegativity_count,
+            }
+
+        message = "Solution and 3D graphical explanation generated successfully."
+        if trace_video_url:
+            message = "Solution, 3D graphical explanation, and algorithm trace animation generated successfully."
+        elif trace_video_error:
+            message += " The algorithm trace remains available on the webpage, but its MP4 failed."
+        message = add_nonnegativity_notice(message, ignored_nonnegativity_count)
+        return {
+            "result": result,
+            "job_id": job_id,
+            "video_url": f"/jobs/{job_id}/video",
+            "trace_video_url": trace_video_url,
+            "trace_video_status": trace_video_status,
+            "trace_video_error": trace_video_error,
+            "video_status": "generated",
+            "video_error": None,
+            "visualization_type": "3d",
+            "message": message,
+            "ignored_redundant_nonnegativity_constraints": ignored_nonnegativity_count,
+        }
+
+    if variable_count >= 4:
+        profile_ok, profile_error = run_manim(
+            HIGH_DIM_ANIMATION, "LPPHighDimAnimation",
+            result_json=result_file, media_dir=media_dir, timeout=180,
+        )
+        if not profile_ok or not nonempty_video(highdim_video):
+            error = profile_error or "Manim did not create a non-empty high-dimensional profile MP4."
+            message = add_nonnegativity_notice(
+                "The numerical solution was found, but the high-dimensional explanation failed. " + error,
+                ignored_nonnegativity_count,
+            )
+            return {
+                "result": result,
+                "job_id": job_id,
+                "video_url": None,
+                "trace_video_url": trace_video_url,
+                "trace_video_status": trace_video_status,
+                "trace_video_error": trace_video_error,
+                "video_status": "failed",
+                "video_error": error,
+                "visualization_type": "highdim",
+                "message": message,
+                "ignored_redundant_nonnegativity_constraints": ignored_nonnegativity_count,
+            }
+
+        message = "Solution and high-dimensional variable/constraint explanation generated successfully."
+        if trace_video_url:
+            message = "Solution, high-dimensional explanation, and algorithm trace animation generated successfully."
+        elif trace_video_error:
+            message += " The algorithm trace remains available on the webpage, but its MP4 failed."
+        message = add_nonnegativity_notice(message, ignored_nonnegativity_count)
+        return {
+            "result": result,
+            "job_id": job_id,
+            "video_url": f"/jobs/{job_id}/video",
+            "trace_video_url": trace_video_url,
+            "trace_video_status": trace_video_status,
+            "trace_video_error": trace_video_error,
+            "video_status": "generated",
+            "video_error": None,
+            "visualization_type": "highdim",
             "message": message,
             "ignored_redundant_nonnegativity_constraints": ignored_nonnegativity_count,
         }
@@ -599,8 +722,13 @@ def solve(problem: LPPRequest, _guard: None = Depends(solve_guard)):
 @app.get("/jobs/{job_id}/video")
 def get_job_video(job_id: str):
     job_dir = get_job_directory(job_id)
-    video = job_video_path(job_dir, "lpp_animation", "LPPAnimation")
-    if not nonempty_video(video):
+    candidates = [
+        job_video_path(job_dir, "lpp_animation", "LPPAnimation"),
+        job_video_path(job_dir, "lpp_3d_animation", "LPP3DAnimation"),
+        job_video_path(job_dir, "lpp_highdim_animation", "LPPHighDimAnimation"),
+    ]
+    video = next((candidate for candidate in candidates if nonempty_video(candidate)), None)
+    if video is None:
         raise HTTPException(404, "Graph video not found or expired for this solve.")
     return FileResponse(
         video, media_type="video/mp4", filename=f"optisolve-{job_id}.mp4",
